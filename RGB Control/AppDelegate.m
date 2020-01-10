@@ -9,6 +9,7 @@
 #import "AppDelegate.h"
 #include <wchar.h>
 
+
 static int get_string_property(IOHIDDeviceRef device, CFStringRef prop, wchar_t *buf, size_t len)
 {
     CFStringRef str;
@@ -116,7 +117,24 @@ static void Handle_DeviceMatchingCallback(void *context,
     
     if (selfObject != nil) {
         selfObject->rgbwHIDDeviceRef = inIOHIDDeviceRef;
-        [selfObject startQueryRGBW];
+
+        [selfObject.rSlider setEnabled:YES];
+        [selfObject.gSlider setEnabled:YES];
+        [selfObject.bSlider setEnabled:YES];
+        [selfObject.wSlider setEnabled:YES];
+        
+        [selfObject.rTextField setEnabled:YES];
+        [selfObject.gTextField setEnabled:YES];
+        [selfObject.bTextField setEnabled:YES];
+        [selfObject.wTextField setEnabled:YES];
+        
+        [selfObject.addButton setEnabled:YES];
+        //[selfObject.deleteButton setEnabled:YES];
+        
+        [selfObject.rgbwTableView deselectAll:nil];
+
+        [selfObject startQueryRGBW: YES];
+        
     }
     return;
     UInt8 buffer[16];
@@ -249,29 +267,39 @@ static void Handle_DeviceRemovalCallback(void *inContext,
     @synchronized (selfObject) {
         selfObject->rgbwHIDDeviceRef = NULL;
     }
-    NSLog(@"\ndevice removed: %p\ndevice count: %ld", (void *)inIOHIDDeviceRef,USBDeviceCount(inSender));
+    //NSLog(@"\ndevice removed: %p\ndevice count: %ld", (void *)inIOHIDDeviceRef,USBDeviceCount(inSender));
     
     // TODO: make sure your application doesn't try to do anything with the removed device
+    [selfObject.rSlider setEnabled:NO];
+    [selfObject.gSlider setEnabled:NO];
+    [selfObject.bSlider setEnabled:NO];
+    [selfObject.wSlider setEnabled:NO];
+    
+    selfObject.rTextField.stringValue = @"";
+    selfObject.gTextField.stringValue = @"";
+    selfObject.bTextField.stringValue = @"";
+    selfObject.wTextField.stringValue = @"";
+    
+    [selfObject.rTextField setEnabled:NO];
+    [selfObject.gTextField setEnabled:NO];
+    [selfObject.bTextField setEnabled:NO];
+    [selfObject.wTextField setEnabled:NO];
+    
+    [selfObject.addButton setEnabled:NO];
+    [selfObject.deleteButton setEnabled:NO];
+    
+    [selfObject.rgbwTableView deselectAll:nil];
 }
 
-@interface RGB_ControlAppDelegate () {
+@interface RGB_ControlAppDelegate () <TextFieldProtocol> {
     IOHIDManagerRef hidManager;
 }
 
 @property (weak) IBOutlet NSWindow *window;
 
-@property IBOutlet NSTextField *rTextField;
-@property IBOutlet NSTextField *gTextField;
-@property IBOutlet NSTextField *bTextField;
-
-@property IBOutlet NSView *colorView;
-
-@property IBOutlet NSSlider *rSlider;
-@property IBOutlet NSSlider *gSlider;
-@property IBOutlet NSSlider *bSlider;
-
 @property (retain) id isWritingMutex;
 @property BOOL isWriting;
+
 @end
 
 @implementation RGB_ControlAppDelegate
@@ -324,6 +352,38 @@ static void Handle_DeviceRemovalCallback(void *inContext,
     // Open the HID Manager
     IOReturn IOReturn = IOHIDManagerOpen(self->hidManager, kIOHIDOptionsTypeNone);
     if(IOReturn) NSLog(@"IOHIDManagerOpen failed.");  //  Couldn't open the HID manager! TODO: proper error handling
+    
+    //[self.rgbwDataArray addObject:@{@"rValue":@(1),@"bValue":@(3)}];
+    self.rTextField.inputDelegate = self;
+    self.gTextField.inputDelegate = self;
+    self.bTextField.inputDelegate = self;
+    self.wTextField.inputDelegate = self;
+    
+    [self.window center];
+    
+    //
+    [self.rSlider setEnabled:NO];
+    [self.gSlider setEnabled:NO];
+    [self.bSlider setEnabled:NO];
+    [self.wSlider setEnabled:NO];
+
+    self.rTextField.stringValue = @"";
+    self.gTextField.stringValue = @"";
+    self.bTextField.stringValue = @"";
+    self.wTextField.stringValue = @"";
+
+    [self.rTextField setEnabled:NO];
+    [self.gTextField setEnabled:NO];
+    [self.bTextField setEnabled:NO];
+    [self.wTextField setEnabled:NO];
+
+    [self.addButton setEnabled:NO];
+    [self.deleteButton setEnabled:NO];
+    
+    [self.rgbwDataArray addObserver:self
+                         forKeyPath:@"selectedObjects"
+                            options:NSKeyValueObservingOptionNew
+                            context:nil];
 }
 
 
@@ -332,12 +392,33 @@ static void Handle_DeviceRemovalCallback(void *inContext,
     IOHIDManagerClose(self->hidManager, kIOHIDOptionsTypeNone);
 }
 
+- (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
+    return YES;
+}
+
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSKeyValueChangeKey,id> *)change context:(void *)context {
+    if([keyPath isEqualToString:@"selectedObjects"]) {
+        NSArrayController *rgbDataArray = (NSArrayController *)object;
+        NSIndexSet *selections = rgbDataArray.selectionIndexes;
+        
+        if(selections.count < 1) {
+            [self.deleteButton setEnabled:NO];
+        }
+        else {
+            [self.deleteButton setEnabled:YES];
+        }
+    }
+}
+
 - (IBAction)rgbwSlider:(NSSlider *)sender {
     NSEvent *event = [[NSApplication sharedApplication] currentEvent];
     BOOL startingDrag = event.type == NSLeftMouseDown;
     BOOL endingDrag = event.type == NSLeftMouseUp;
     //BOOL dragging = event.type == NSLeftMouseDragged;
-
+    if(self->rgbwHIDDeviceRef == NULL) {
+        return;
+    }
+    
     @synchronized (self.isWritingMutex) {
         if(startingDrag) {
             self.isWriting = YES;
@@ -354,29 +435,199 @@ static void Handle_DeviceRemovalCallback(void *inContext,
     if (sender.tag == 3) {
         self.bTextField.stringValue = @(sender.integerValue).stringValue;
     }
+    if (sender.tag == 4) {
+        self.wTextField.stringValue = @(sender.integerValue).stringValue;
+    }
     
     @synchronized (self.isWritingMutex) {
         if(endingDrag) {
-            [self setRGBWValue];
+            CFIndex returnSize = 9;//sizeof(buffer);
+            UInt8 buffer[16] = {0x55,0xAA,0x06,0x04,0,0,0,0,0};
+            
+            buffer[4] = self.rSlider.integerValue;
+            buffer[5] = self.gSlider.integerValue;
+            buffer[6] = self.bSlider.integerValue;
+            buffer[7] = self.wSlider.integerValue;
+            
+            buffer[8] = 0;
+            for (NSInteger myIndex = 0; myIndex < 8;myIndex++) {
+                buffer[8] += buffer[myIndex];
+            }
+            
+            IOReturn err = IOHIDDeviceSetReport(self->rgbwHIDDeviceRef ,kIOHIDReportTypeOutput ,0 ,buffer ,returnSize);
+            if(kIOReturnSuccess != err) {
+                return;
+            }
             self.isWriting = NO;
         }
     }
 }
 
-- (void)startQueryRGBW {
-    [self getRGBWValue];
+- (IBAction)openAction:(id)sender {
+    NSOpenPanel* openPanel = [NSOpenPanel openPanel];
+    // NSLog(@"Open Panel");
+    //set restrictions / allowances...
+    [openPanel setAllowsMultipleSelection: NO];
+    [openPanel setCanChooseDirectories:NO];
+    [openPanel setCanCreateDirectories:NO];
+    [openPanel setCanChooseFiles:YES];
+    //only allow images...
+    [openPanel setAllowedFileTypes:[NSArray arrayWithObjects: @"csv" ,nil ]];
+    //open panel as sheet on main window...
+    [openPanel beginSheetModalForWindow:self.window completionHandler:^(NSInteger result)  {
+        if (result == NSFileHandlingPanelOKButton) {
+            dispatch_async(dispatch_get_global_queue( DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                
+                [[self.rgbwDataArray content] removeAllObjects];
+                
+                NSString *csvString = [NSString stringWithContentsOfURL:[openPanel URLs].firstObject
+                                                               encoding:NSASCIIStringEncoding
+                                                                  error:nil];
+                NSArray *rgbws = [csvString componentsSeparatedByCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"\r\n"]];
+                
+                for(NSString *rgbwLine in rgbws) {
+                    NSArray *rgbw = [rgbwLine componentsSeparatedByCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@","]];
+                    NSInteger rValue = ((NSString *)rgbw[0]).intValue;
+                    NSInteger gValue = ((NSString *)rgbw[1]).intValue;
+                    NSInteger bValue = ((NSString *)rgbw[2]).intValue;
+                    NSInteger wValue = ((NSString *)rgbw[3]).intValue;
+                    
+                    [self.rgbwDataArray addObject:@{@"rValue": @(rValue), @"gValue": @(gValue), @"bValue": @(bValue), @"wValue": @(wValue)}];
+                }
+            });
+        }
+    }];
+    
 }
 
-- (void)getRGBWValue {
+- (IBAction)addAction:(id)sender {
+
+    NSAlert *alert;
+    
+    if (self.rTextField.stringValue.length < 1) {
+        @autoreleasepool {
+            alert = [[NSAlert alloc] init];
+            [alert addButtonWithTitle:@"OK"];
+            [alert setMessageText:@"Input is not completed"];
+            [alert setInformativeText:@"R value"];
+            [alert setAlertStyle:NSInformationalAlertStyle];
+            [alert beginSheetModalForWindow:self.window completionHandler:^(NSInteger result)  {
+                return;
+            }];
+        }
+    }
+
+    if (self.gTextField.stringValue.length < 1) {
+        @autoreleasepool {
+            alert = [[NSAlert alloc] init];
+            [alert addButtonWithTitle:@"OK"];
+            [alert setMessageText:@"Input is not completed"];
+            [alert setInformativeText:@"G value"];
+            [alert setAlertStyle:NSInformationalAlertStyle];
+            [alert beginSheetModalForWindow:self.window completionHandler:^(NSInteger result)  {
+                return;
+            }];
+        }
+    }
+
+    if (self.bTextField.stringValue.length < 1) {
+        @autoreleasepool {
+            alert = [[NSAlert alloc] init];
+            [alert addButtonWithTitle:@"OK"];
+            [alert setMessageText:@"Input is not completed"];
+            [alert setInformativeText:@"B value"];
+            [alert setAlertStyle:NSInformationalAlertStyle];
+            [alert beginSheetModalForWindow:self.window completionHandler:^(NSInteger result)  {
+                return;
+            }];
+        }
+    }
+
+    [self.rgbwDataArray addObject:@{@"rValue": @(self.rSlider.integerValue), @"gValue": @(self.gSlider.integerValue), @"bValue": @(self.bSlider.integerValue), @"wValue": @(0)}];
+}
+
+- (IBAction)deleteAction:(id)sender {
+    NSInteger selection = self.rgbwDataArray.selectionIndex;
+    [self.rgbwDataArray removeObjectAtArrangedObjectIndex:selection];
+    [self.rgbwTableView deselectAll:nil];
+}
+
+- (IBAction)saveAction:(id)sender {
+    NSSavePanel *savePanel = [NSSavePanel savePanel];
+    savePanel.canCreateDirectories = YES;
+    savePanel.showsTagField = NO;
+    [savePanel setNameFieldStringValue:@"NewFile.csv"];
+    
+    [savePanel beginSheetModalForWindow:self.window completionHandler:^(NSInteger result)  {
+        if (result == NSFileHandlingPanelOKButton) {
+            dispatch_async(dispatch_get_global_queue( DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                @autoreleasepool {
+                    NSMutableString *csvString = [NSMutableString string];
+                    
+                    NSArray *rgbwDatas = [self.rgbwDataArray content];
+                    for(NSDictionary *rgbw in rgbwDatas) {
+                        [csvString appendString:[NSString stringWithFormat:@"%@,%@,%@,%@\n",rgbw[@"rValue"],rgbw[@"gValue"],rgbw[@"bValue"],rgbw[@"wValue"]]];
+                    }
+                    
+                    [csvString writeToURL:savePanel.URL
+                               atomically:YES
+                                 encoding:NSUTF8StringEncoding
+                                    error:nil];
+                    
+                    [csvString setString:@""];
+                }
+            });
+        }
+    }];
+    
+}
+
+#pragma mark --
+
+- (void)startQueryRGBW:(BOOL)reconnected{
+    [self getRGBWValue:reconnected];
+}
+
+- (void)getRGBWValue:(BOOL)reconnected {
     @synchronized (self) {
         if(self->rgbwHIDDeviceRef == NULL) {
             return;
         }
         
+        if (reconnected) {
+            UInt8 buffer[16];
+            //unsigned long reportSize;
+            
+            CFIndex returnSize = sizeof(buffer);
+            IOReturn err = IOHIDDeviceGetReport(self->rgbwHIDDeviceRef ,kIOHIDReportTypeFeature ,0 ,buffer ,&returnSize);
+            if(kIOReturnSuccess != err) {
+                return;
+            }
+            
+            self.rTextField.stringValue = @(buffer[4]).stringValue;
+            self.gTextField.stringValue = @(buffer[5]).stringValue;
+            self.bTextField.stringValue = @(buffer[6]).stringValue;
+            self.wTextField.stringValue = @(buffer[7]).stringValue;
+            //NSLog(@"R: %d,G: %d,B: %d,W: %d",buffer[4] ,buffer[5],buffer[6],buffer[7]);
+            
+            self.rSlider.integerValue = buffer[4];
+            self.gSlider.integerValue = buffer[5];
+            self.bSlider.integerValue = buffer[6];
+            self.wSlider.integerValue = buffer[7];
+            
+            self.colorView.layer.backgroundColor = [NSColor colorWithCalibratedRed:(float)buffer[4] / 32
+                                                                             green:(float)buffer[5] / 32
+                                                                              blue:(float)buffer[6] / 32
+                                                                             alpha:1.0].CGColor;
+
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+                [self getRGBWValue:NO];
+            });
+        }
         @synchronized (self.isWritingMutex) {
             if(self.isWriting) {
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-                    [self getRGBWValue];
+                    [self getRGBWValue:NO];
                 });
                 return;
             }
@@ -392,10 +643,19 @@ static void Handle_DeviceRemovalCallback(void *inContext,
                 return;
             }
             
+            if(self.rTextField.stringValue.length > 0) {
+                self.rTextField.stringValue = @(buffer[4]).stringValue;
+            }
+            if(self.gTextField.stringValue.length > 0) {
+                self.gTextField.stringValue = @(buffer[5]).stringValue;
+            }
+            if(self.bTextField.stringValue.length > 0) {
+                self.bTextField.stringValue = @(buffer[6]).stringValue;
+            }
+            if(self.wTextField.stringValue.length > 0) {
+                //self.wTextField.stringValue = @(buffer[7]).stringValue;
+            }
             //NSLog(@"R: %d,G: %d,B: %d,W: %d",buffer[4] ,buffer[5],buffer[6],buffer[7]);
-            self.rTextField.stringValue = @(buffer[4]).stringValue;
-            self.gTextField.stringValue = @(buffer[5]).stringValue;
-            self.bTextField.stringValue = @(buffer[6]).stringValue;
             
             self.rSlider.integerValue = buffer[4];
             self.gSlider.integerValue = buffer[5];
@@ -408,24 +668,54 @@ static void Handle_DeviceRemovalCallback(void *inContext,
         });
         
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, USEC_PER_SEC), dispatch_get_main_queue(), ^{
-            [self getRGBWValue];
+            [self getRGBWValue:NO];;
         });
     }
 }
 
-- (void)setRGBWValue {
-    @synchronized (self) {
-        if(self->rgbwHIDDeviceRef == NULL) {
+- (void)inputChange {//:(NSWindow *)parentWin;
+    if(self->rgbwHIDDeviceRef == NULL) {
+        return;
+    }
+    
+    @synchronized (self.isWritingMutex) {
+        self.isWriting = YES;
+    }
+    
+    if(self.rTextField.stringValue.length < 1) {
+        @synchronized (self.isWritingMutex) {
+            self.isWriting = NO;
             return;
         }
-        
+    }
+    if(self.gTextField.stringValue.length < 1) {
+        @synchronized (self.isWritingMutex) {
+            self.isWriting = NO;
+            return;
+        }
+    }
+    if(self.bTextField.stringValue.length < 1) {
+        @synchronized (self.isWritingMutex) {
+            self.isWriting = NO;
+            return;
+        }
+    }
+    /*
+    if(self.wTextField.stringValue.length < 1) {
+        @synchronized (self.isWritingMutex) {
+            self.isWriting = NO;
+            return;
+        }
+    }
+    */
+    @synchronized (self.isWritingMutex) {
         CFIndex returnSize = 9;//sizeof(buffer);
         UInt8 buffer[16] = {0x55,0xAA,0x06,0x04,0,0,0,0,0};
         
-        buffer[4] = self.rSlider.integerValue;
-        buffer[5] = self.gSlider.integerValue;
-        buffer[6] = self.bSlider.integerValue;
-        buffer[7] = 0;
+        buffer[4] = self.rTextField.stringValue.integerValue;
+        buffer[5] = self.gTextField.stringValue.integerValue;
+        buffer[6] = self.bTextField.stringValue.integerValue;
+        buffer[7] = 0;//self.wTextField.stringValue.integerValue;
         
         buffer[8] = 0;
         for (NSInteger myIndex = 0; myIndex < 8;myIndex++) {
@@ -436,7 +726,9 @@ static void Handle_DeviceRemovalCallback(void *inContext,
         if(kIOReturnSuccess != err) {
             return;
         }
+        self.isWriting = NO;
     }
+
 }
 
 @end

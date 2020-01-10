@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E2736B4323BD9584003B9D4E /* NumberOnlyTextField.m in Sources */ = {isa = PBXBuildFile; fileRef = E2736B4223BD9584003B9D4E /* NumberOnlyTextField.m */; };
 		E2DC710C23B343DD00145055 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = E2DC710B23B343DD00145055 /* AppDelegate.m */; };
 		E2DC710F23B343DD00145055 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = E2DC710E23B343DD00145055 /* main.m */; };
 		E2DC711123B343DD00145055 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E2DC711023B343DD00145055 /* Assets.xcassets */; };
@@ -14,6 +15,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		E2736B4123BD9584003B9D4E /* NumberOnlyTextField.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NumberOnlyTextField.h; sourceTree = "<group>"; };
+		E2736B4223BD9584003B9D4E /* NumberOnlyTextField.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NumberOnlyTextField.m; sourceTree = "<group>"; };
 		E2DC710723B343DD00145055 /* RGB Control.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "RGB Control.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E2DC710A23B343DD00145055 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		E2DC710B23B343DD00145055 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
@@ -55,6 +58,8 @@
 			children = (
 				E2DC710A23B343DD00145055 /* AppDelegate.h */,
 				E2DC710B23B343DD00145055 /* AppDelegate.m */,
+				E2736B4123BD9584003B9D4E /* NumberOnlyTextField.h */,
+				E2736B4223BD9584003B9D4E /* NumberOnlyTextField.m */,
 				E2DC711023B343DD00145055 /* Assets.xcassets */,
 				E2DC711223B343DD00145055 /* MainMenu.xib */,
 				E2DC711523B343DD00145055 /* Info.plist */,
@@ -102,6 +107,7 @@
 				TargetAttributes = {
 					E2DC710623B343DD00145055 = {
 						CreatedOnToolsVersion = 8.2.1;
+						DevelopmentTeam = 23BF3GTY86;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -142,6 +148,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E2DC710F23B343DD00145055 /* main.m in Sources */,
+				E2736B4323BD9584003B9D4E /* NumberOnlyTextField.m in Sources */,
 				E2DC710C23B343DD00145055 /* AppDelegate.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -251,7 +258,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "Mac Developer";
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 23BF3GTY86;
 				INFOPLIST_FILE = "RGB Control/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.Frasier.RGB-Control";
@@ -263,7 +272,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "Mac Developer";
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 23BF3GTY86;
 				INFOPLIST_FILE = "RGB Control/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.Frasier.RGB-Control";
@@ -290,6 +301,7 @@
 				E2DC711A23B343DD00145055 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
